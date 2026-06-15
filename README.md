@@ -35,6 +35,9 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
+Open `http://127.0.0.1:8000/dashboard` for the six-panel dashboard. It uses a
+one-hour window and refreshes from `/metrics` every 20 seconds.
+
 ## Tooling
 
 ```bash
@@ -60,6 +63,7 @@ app/
   tracing.py             Langfuse helpers
   schemas.py             request/response/log models
   metrics.py             in-memory metrics helpers
+  dashboard.py           six-panel live dashboard
   incidents.py           toggles for injected failures
   mock_llm.py            deterministic fake LLM
   mock_rag.py            deterministic fake retrieval
@@ -82,6 +86,7 @@ docs/
   blueprint-template.md  team submission template
   alerts.md              runbook + alert worksheet
   dashboard-spec.md      6-panel dashboard checklist
+  incident-response.md   metrics-to-traces-to-logs investigation notes
   grading-evidence.md    evidence collection sheet
   mock-debug-qa.md       oral/written debugging questions
 ```

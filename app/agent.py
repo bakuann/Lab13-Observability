@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
+from structlog.contextvars import get_contextvars
+
 from . import metrics
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
@@ -25,7 +27,7 @@ class LabAgent:
         self.model = model
         self.llm = FakeLLM(model=model)
 
-    @observe()
+    @observe(name="agent-run", capture_input=False, capture_output=False)
     def run(self, user_id: str, feature: str, session_id: str, message: str) -> AgentResult:
         started = time.perf_counter()
         docs = retrieve(message)
@@ -35,14 +37,30 @@ class LabAgent:
         latency_ms = int((time.perf_counter() - started) * 1000)
         cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
 
+        log_context = get_contextvars()
+        trace_metadata = {
+            "correlation_id": log_context.get("correlation_id"),
+            "feature": feature,
+            "model": self.model,
+            "env": log_context.get("env"),
+            "quality_score": quality_score,
+        }
         langfuse_context.update_current_trace(
             user_id=hash_user_id(user_id),
             session_id=session_id,
             tags=["lab", feature, self.model],
+            input={"message_preview": summarize_text(message)},
+            output={"answer_preview": summarize_text(response.text)},
+            metadata=trace_metadata,
         )
-        langfuse_context.update_current_observation(
-            metadata={"doc_count": len(docs), "query_preview": summarize_text(message)},
-            usage_details={"input": response.usage.input_tokens, "output": response.usage.output_tokens},
+        langfuse_context.update_current_span(
+            metadata={
+                **trace_metadata,
+                "doc_count": len(docs),
+                "cost_usd": cost_usd,
+                "tokens_in": response.usage.input_tokens,
+                "tokens_out": response.usage.output_tokens,
+            },
         )
 
         metrics.record_request(
